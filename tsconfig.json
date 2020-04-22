@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "es2017",
+    "module": "CommonJS",
+    "declaration": true,
+    "declarationDir": "./build/types",
+    "sourceMap": true,
+    "outDir": "./build",
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noImplicitThis": true,
+    "esModuleInterop": true,
+    "jsx": "react",
+  },
+  "include": [
+    "./src"
+  ]
+}

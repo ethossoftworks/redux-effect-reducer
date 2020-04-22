@@ -1,0 +1,5 @@
+{
+    "name": "@ethossoftworks/redux-effect-reducer/effects",
+    "main": "../redux-effect-reducer.effects.js",
+    "types": "../types/effects/effects.d.ts"
+}
