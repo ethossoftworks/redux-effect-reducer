@@ -16,7 +16,7 @@ export interface EffectMiddlewareContext {
     getState: () => any
 }
 
-interface RunEffectMeta {
+interface EffectRunnerMeta {
     rootInitiator: Action | void
     initiator: Action | Effect | void
     depth: number
@@ -83,7 +83,11 @@ export function runEffect(effect: Effect | void, context: EffectMiddlewareContex
     return _runEffect(effect, context, { depth: 0, rootInitiator: undefined, initiator: undefined })
 }
 
-async function _runEffect(effect: Effect | void, context: EffectMiddlewareContext, meta: RunEffectMeta): Promise<void> {
+async function _runEffect(
+    effect: Effect | void,
+    context: EffectMiddlewareContext,
+    meta: EffectRunnerMeta
+): Promise<void> {
     if (!effect) {
         return
     } else if (context.logger) {
@@ -205,7 +209,7 @@ function createEffectStreamProxy(
     effect: StreamEffect,
     stream: EffectStream,
     context: EffectMiddlewareContext,
-    meta: RunEffectMeta
+    meta: EffectRunnerMeta
 ): EffectStream {
     return new Proxy(stream, {
         get: (target, member: keyof EffectStream) => {
