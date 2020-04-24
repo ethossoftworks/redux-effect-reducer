@@ -278,6 +278,14 @@ const Tests: TestGroup<typeof testContext> = {
                     isEqual(logger.last().effect, dispatch(TestActions.echo("STREAM_CLOSED")))
             )
         },
+        testCancellableCleanup: async ({ assert, context: { middlewareContext } }) => {
+            const effect = parallel(
+                timeout(dispatch(TestActions.echo("")), 500, { cancelId: "cancellable_cleanup_timeout" }),
+                stream((stream) => stream.close(), { cancelId: "cancellable_cleanup_stream" })
+            )
+            await runEffect(effect, middlewareContext)
+            assert(Object.keys(middlewareContext.cancellables).length === 0)
+        },
         testSelect: async ({ fail, context: { middlewareContext } }) => {
             const store = createStore(reducer1)
             const effect = sequence(

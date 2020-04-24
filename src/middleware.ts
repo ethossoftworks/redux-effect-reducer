@@ -1,6 +1,6 @@
 import { MiddlewareAPI, Dispatch, Action, Middleware } from "redux"
-import { Effect, EffectType, isEffect, EffectStream, IntervalEffect, all } from "./effects/effects"
-import { sleep, allSettled } from "./util"
+import { Effect, EffectType, isEffect, EffectStream, all, StreamEffect } from "./effects/effects"
+import { allSettled } from "./util"
 import { EffectLogger } from "./logger"
 
 export type EffectReducerMap<S = any> = {
@@ -137,7 +137,7 @@ async function _runEffect(effect: Effect | void, context: EffectMiddlewareContex
 
             while (true) {
                 if (cancelWrapper.cancelled) {
-                    return
+                    break
                 } else if (effect.runAtStart) {
                     await runTask()
                 }
@@ -148,15 +148,20 @@ async function _runEffect(effect: Effect | void, context: EffectMiddlewareContex
                 })
 
                 if (cancelWrapper.cancelled) {
-                    return
+                    break
                 } else if (!effect.runAtStart) {
                     await runTask()
                 }
 
                 if (!effect.repeat) {
-                    return
+                    break
                 }
             }
+
+            if (effect.cancelId) {
+                delete context.cancellables[effect.cancelId]
+            }
+            return
         }
         case EffectType.Cancel: {
             const cancel = context.cancellables[effect.cancelId]
@@ -167,7 +172,7 @@ async function _runEffect(effect: Effect | void, context: EffectMiddlewareContex
             break
         }
         case EffectType.Stream: {
-            const stream = createEffectStreamProxy(createEffectStream(), context, nestedMeta)
+            const stream = createEffectStreamProxy(effect, createEffectStream(), context, nestedMeta)
             if (effect.cancelId) {
                 context.cancellables[effect.cancelId] = stream.close
             }
@@ -197,6 +202,7 @@ function createEffectStream(): EffectStream {
 }
 
 function createEffectStreamProxy(
+    effect: StreamEffect,
     stream: EffectStream,
     context: EffectMiddlewareContext,
     meta: RunEffectMeta
@@ -216,6 +222,11 @@ function createEffectStreamProxy(
                     if (target.onClose) {
                         target.onClose()
                     }
+
+                    if (effect.cancelId) {
+                        delete context.cancellables[effect.cancelId]
+                    }
+
                     target.close()
                     target.closed = true
                 }
