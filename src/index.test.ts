@@ -305,7 +305,7 @@ const Tests: TestGroup<typeof testContext> = {
             )
             await runEffect(effect, { ...middlewareContext, dispatch: store.dispatch, getState: store.getState })
         },
-        testDebounce: async ({ assert, context: { middlewareContext, logger, dispatched } }) => {
+        testDebounce: async ({ fail, assert, context: { middlewareContext, logger, dispatched } }) => {
             for (let i = 0; i < 10; i++) {
                 const effect = debounce("debounce_test", dispatch(TestActions.echo("debounce")), 250)
                 runEffect(effect, middlewareContext)
@@ -320,8 +320,8 @@ const Tests: TestGroup<typeof testContext> = {
             middlewareContext.logger.logs.splice(0, middlewareContext.logger.logs.length)
             middlewareContext.dispatched.splice(0, middlewareContext.dispatched.length)
 
+            const effect = debounce("debounce_test2", dispatch(TestActions.echo("debounce")), 250, 400)
             for (let i = 0; i < 10; i++) {
-                const effect = debounce("debounce_test2", dispatch(TestActions.echo("debounce")), 250, 400)
                 runEffect(effect, middlewareContext)
                 await sleep(100)
             }
@@ -330,6 +330,15 @@ const Tests: TestGroup<typeof testContext> = {
             assert(dispatched.length == 2)
             await sleep(300)
             assert(dispatched.length == 3)
+
+            // Test remitting after timeout with a max timeout
+            runEffect(effect, middlewareContext)
+            await sleep(100)
+            if (dispatched.length === 4) {
+                fail("Re-click after timeout (with max timeout) fires immediately")
+            }
+            await sleep(200)
+            assert(dispatched.length === 4)
         },
         testThrottle: async ({ assert, context: { middlewareContext, logger, dispatched } }) => {
             for (let i = 0; i < 10; i++) {

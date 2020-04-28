@@ -244,7 +244,10 @@ async function handleDebounceEffect(effect: DebounceEffect, context: EffectMiddl
         clearTimeout(limiter.job)
     }
 
-    const job = window.setTimeout(() => _runEffect(effect.effect, context, meta), effect.delay)
+    const job = window.setTimeout(() => {
+        delete context.limiters[effect.debounceId]
+        _runEffect(effect.effect, context, meta)
+    }, effect.delay)
 
     if (!limiter || effect.maxTimeout == -1) {
         context.limiters[effect.debounceId] = { timestamp: performance.now(), job: job }
