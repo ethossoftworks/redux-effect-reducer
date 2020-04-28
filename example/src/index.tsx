@@ -76,7 +76,7 @@ export function App() {
                 <div className="button-cont">
                     <div className="range-cont">
                         <div className="range-label">Debounce Delay</div>
-                        <div className="range-bound-label range-min">10</div>
+                        <div className="range-bound-label range-min">100</div>
                         <input
                             type="range"
                             min="100"
@@ -123,10 +123,10 @@ export function App() {
                 <div className="button-cont">
                     <div className="range-cont">
                         <div className="range-label">Throttle Delay</div>
-                        <div className="range-bound-label range-min">10</div>
+                        <div className="range-bound-label range-min">50</div>
                         <input
                             type="range"
-                            min="100"
+                            min="50"
                             max="1000"
                             step="10"
                             onChange={(e) => dispatch(LimitersActions.throttleDelayChanged(parseFloat(e.target.value)))}
@@ -137,10 +137,10 @@ export function App() {
                     </div>
                     <div className="range-cont">
                         <div className="range-label">Emit Interval</div>
-                        <div className="range-bound-label range-min">10</div>
+                        <div className="range-bound-label range-min">50</div>
                         <input
                             type="range"
-                            min="100"
+                            min="50"
                             max="1000"
                             step="10"
                             onChange={(e) =>
