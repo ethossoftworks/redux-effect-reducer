@@ -1,5 +1,20 @@
 import { MiddlewareAPI, Dispatch, Action, Middleware } from "redux"
-import { Effect, EffectType, isEffect, EffectStream, all, StreamEffect } from "./effects/effects"
+import {
+    Effect,
+    EffectType,
+    isEffect,
+    EffectStream,
+    all,
+    StreamEffect,
+    RunEffect,
+    AllEffect,
+    IntervalEffect,
+    CancelEffect,
+    DispatchEffect,
+    SelectEffect,
+    DebounceEffect,
+    ThrottleEffect,
+} from "./effects/effects"
 import { allSettled } from "./util"
 import { EffectLogger } from "./logger"
 
@@ -12,12 +27,12 @@ export type EffectReducer<S = any, A extends Action = Action> = (state: S, actio
 export interface EffectMiddlewareContext {
     logger?: EffectLogger
     cancellables: Record<string | number, () => void>
-    limiters: Record<string, EffectLimiter>
+    limiters: Record<string, EffectLimiterJob>
     dispatch: (action: Action) => void
     getState: () => any
 }
 
-export type EffectLimiter = {
+export type EffectLimiterJob = {
     timestamp: number
     job: number | null
 }
@@ -97,209 +112,214 @@ async function _runEffect(
 ): Promise<void> {
     if (!effect) {
         return
-    } else if (context.logger) {
-        context.logger.log({
-            effect: effect,
-            depth: meta.depth,
-            rootInitiator: meta.rootInitiator,
-            initiator: meta.initiator,
-            timestamp: performance.now(),
-        })
     }
+
+    context.logger?.log({
+        effect: effect,
+        depth: meta.depth,
+        rootInitiator: meta.rootInitiator,
+        initiator: meta.initiator,
+        timestamp: performance.now(),
+    })
+
     const nestedMeta = { depth: meta.depth + 1, rootInitiator: meta.rootInitiator, initiator: effect }
 
     switch (effect.type) {
-        case EffectType.Run: {
-            const result = await effect.func(...effect.funcArgs)
-            if (isEffect(result)) {
-                await _runEffect(result, context, nestedMeta)
-            }
+        case EffectType.Run:
+            return handleRunEffect(effect, context, nestedMeta)
+        case EffectType.All:
+            return handleAllEffect(effect, context, nestedMeta)
+        case EffectType.Interval:
+            return handleIntervalEffect(effect, context, nestedMeta)
+        case EffectType.Cancel:
+            return handleCancelEffect(effect, context, nestedMeta)
+        case EffectType.Stream:
+            return handleStreamEffect(effect, context, nestedMeta)
+        case EffectType.Dispatch:
+            return handleDispatchEffect(effect, context, nestedMeta)
+        case EffectType.Select:
+            return handleSelectEffect(effect, context, nestedMeta)
+        case EffectType.Debounce:
+            return handleDebounceEffect(effect, context, nestedMeta)
+        case EffectType.Throttle:
+            return handleThrottleEffect(effect, context, nestedMeta)
+    }
+}
+
+async function handleRunEffect(effect: RunEffect, context: EffectMiddlewareContext, meta: EffectRunnerMeta) {
+    const result = await effect.func(...effect.funcArgs)
+    if (isEffect(result)) {
+        await _runEffect(result, context, meta)
+    }
+}
+
+async function handleAllEffect(effect: AllEffect, context: EffectMiddlewareContext, meta: EffectRunnerMeta) {
+    if (effect.parallel) {
+        await allSettled(effect.effects.map((effect) => _runEffect(effect, context, meta)))
+    } else {
+        for (let i = 0, l = effect.effects.length; i < l; i++) {
+            await _runEffect(effect.effects[i], context, meta)
+        }
+    }
+}
+
+async function handleIntervalEffect(effect: IntervalEffect, context: EffectMiddlewareContext, meta: EffectRunnerMeta) {
+    const cancelWrapper = { cancelled: false, cancel: () => {} }
+
+    if (effect.cancelId) {
+        context.cancellables[effect.cancelId] = () => {
+            cancelWrapper.cancelled = true
+            cancelWrapper.cancel()
+        }
+    }
+
+    const runTask = async () => {
+        const result = await (isEffect(effect.task)
+            ? _runEffect(effect.task, context, meta)
+            : effect.task(...effect.taskArgs))
+
+        if (isEffect(result)) {
+            await _runEffect(result, context, meta)
+        }
+    }
+
+    while (true) {
+        if (cancelWrapper.cancelled) {
+            break
+        } else if (effect.runAtStart) {
+            await runTask()
+        }
+
+        await new Promise((resolve) => {
+            cancelWrapper.cancel = () => resolve()
+            setTimeout(resolve, effect.delay)
+        })
+
+        if (cancelWrapper.cancelled) {
+            break
+        } else if (!effect.runAtStart) {
+            await runTask()
+        }
+
+        if (!effect.repeat) {
             break
         }
-        case EffectType.All: {
-            if (effect.parallel) {
-                await allSettled(effect.effects.map((effect) => _runEffect(effect, context, nestedMeta)))
-            } else {
-                for (let i = 0, l = effect.effects.length; i < l; i++) {
-                    await _runEffect(effect.effects[i], context, nestedMeta)
-                }
-            }
-            break
+    }
+
+    if (effect.cancelId) {
+        delete context.cancellables[effect.cancelId]
+    }
+}
+
+async function handleCancelEffect(effect: CancelEffect, context: EffectMiddlewareContext, meta: EffectRunnerMeta) {
+    const cancel = context.cancellables[effect.cancelId]
+    if (cancel) {
+        cancel()
+        delete context.cancellables[effect.cancelId]
+    }
+}
+
+async function handleStreamEffect(effect: StreamEffect, context: EffectMiddlewareContext, meta: EffectRunnerMeta) {
+    const stream = new DefaultEffectStream(effect, context, meta)
+    if (effect.cancelId) {
+        context.cancellables[effect.cancelId] = stream.close.bind(stream)
+    }
+    effect.func(stream, ...effect.funcArgs)
+}
+
+async function handleDispatchEffect(effect: DispatchEffect, context: EffectMiddlewareContext, meta: EffectRunnerMeta) {
+    context.dispatch(effect.action)
+}
+
+async function handleSelectEffect(effect: SelectEffect<any>, context: EffectMiddlewareContext, meta: EffectRunnerMeta) {
+    const result = await effect.func(context.getState, ...effect.funcArgs)
+    if (isEffect(result)) {
+        await _runEffect(result, context, meta)
+    }
+}
+
+async function handleDebounceEffect(effect: DebounceEffect, context: EffectMiddlewareContext, meta: EffectRunnerMeta) {
+    const limiter = context.limiters[effect.debounceId]
+    if (limiter && limiter.job) {
+        clearTimeout(limiter.job)
+    }
+
+    const job = window.setTimeout(() => _runEffect(effect.effect, context, meta), effect.delay)
+
+    if (!limiter || effect.maxTimeout == -1) {
+        context.limiters[effect.debounceId] = { timestamp: performance.now(), job: job }
+        return
+    }
+
+    if (performance.now() - limiter.timestamp >= effect.maxTimeout) {
+        window.clearTimeout(job)
+        context.limiters[effect.debounceId] = { timestamp: performance.now(), job: null }
+        _runEffect(effect.effect, context, meta)
+        return
+    }
+
+    context.limiters[effect.debounceId] = { timestamp: limiter.timestamp, job: job }
+}
+
+async function handleThrottleEffect(effect: ThrottleEffect, context: EffectMiddlewareContext, meta: EffectRunnerMeta) {
+    const limiter = context.limiters[effect.throttleId]
+    if (limiter && limiter.job) {
+        clearTimeout(limiter.job)
+    }
+
+    if (!limiter) {
+        context.limiters[effect.throttleId] = { timestamp: performance.now(), job: null }
+        _runEffect(effect.effect, context, meta)
+        return
+    }
+
+    if (effect.emitLast) {
+        if (performance.now() - limiter.timestamp >= effect.delay) {
+            context.limiters[effect.throttleId] = { timestamp: performance.now(), job: null }
+            _runEffect(effect.effect, context, meta)
+        } else {
+            const nextScheduled = effect.delay - (performance.now() - limiter.timestamp)
+            const job = window.setTimeout(() => {
+                context.limiters[effect.throttleId] = { timestamp: performance.now(), job: null }
+                _runEffect(effect.effect, context, meta)
+            }, nextScheduled)
+
+            context.limiters[effect.throttleId] = { timestamp: limiter.timestamp, job: job }
         }
-        case EffectType.Interval: {
-            const cancelWrapper = { cancelled: false, cancel: () => {} }
+        return
+    }
 
-            if (effect.cancelId) {
-                context.cancellables[effect.cancelId] = () => {
-                    cancelWrapper.cancelled = true
-                    cancelWrapper.cancel()
-                }
-            }
+    if (performance.now() - limiter.timestamp >= effect.delay) {
+        context.limiters[effect.throttleId] = { timestamp: performance.now(), job: null }
+        _runEffect(effect.effect, context, meta)
+    }
+}
 
-            const runTask = async () => {
-                const result = await (isEffect(effect.task)
-                    ? _runEffect(effect.task, context, nestedMeta)
-                    : effect.task(...effect.taskArgs))
+class DefaultEffectStream implements EffectStream {
+    onClose?: () => void = undefined
+    closed: boolean = false
 
-                if (isEffect(result)) {
-                    await _runEffect(result, context, nestedMeta)
-                }
-            }
+    constructor(
+        private effect: StreamEffect,
+        private context: EffectMiddlewareContext,
+        private meta: EffectRunnerMeta
+    ) {}
 
-            while (true) {
-                if (cancelWrapper.cancelled) {
-                    break
-                } else if (effect.runAtStart) {
-                    await runTask()
-                }
-
-                await new Promise((resolve) => {
-                    cancelWrapper.cancel = () => resolve()
-                    setTimeout(resolve, effect.delay)
-                })
-
-                if (cancelWrapper.cancelled) {
-                    break
-                } else if (!effect.runAtStart) {
-                    await runTask()
-                }
-
-                if (!effect.repeat) {
-                    break
-                }
-            }
-
-            if (effect.cancelId) {
-                delete context.cancellables[effect.cancelId]
-            }
+    emit(effect: Effect) {
+        if (this.closed) {
             return
         }
-        case EffectType.Cancel: {
-            const cancel = context.cancellables[effect.cancelId]
-            if (cancel) {
-                cancel()
-                delete context.cancellables[effect.cancelId]
-            }
-            break
-        }
-        case EffectType.Stream: {
-            const stream = createEffectStreamProxy(effect, createEffectStream(), context, nestedMeta)
-            if (effect.cancelId) {
-                context.cancellables[effect.cancelId] = stream.close
-            }
-            effect.func(stream, ...effect.funcArgs)
-            break
-        }
-        case EffectType.Dispatch: {
-            context.dispatch(effect.action)
-            break
-        }
-        case EffectType.Select: {
-            const result = await effect.func(context.getState, ...effect.funcArgs)
-            if (isEffect(result)) {
-                await _runEffect(result, context, nestedMeta)
-            }
-            break
-        }
-        case EffectType.Debounce: {
-            const limiter = context.limiters[effect.id]
-            if (limiter && limiter.job) {
-                clearTimeout(limiter.job)
-            }
-
-            const job = window.setTimeout(() => _runEffect(effect.effect, context, meta), effect.delay)
-
-            if (!limiter || effect.maxTimeout == -1) {
-                context.limiters[effect.id] = { timestamp: performance.now(), job: job }
-                return
-            }
-
-            if (performance.now() - limiter.timestamp >= effect.maxTimeout) {
-                window.clearTimeout(job)
-                context.limiters[effect.id] = { timestamp: performance.now(), job: null }
-                _runEffect(effect.effect, context, meta)
-                return
-            }
-
-            context.limiters[effect.id] = { timestamp: limiter.timestamp, job: job }
-            break
-        }
-        case EffectType.Throttle: {
-            const limiter = context.limiters[effect.id]
-            if (limiter && limiter.job) {
-                clearTimeout(limiter.job)
-            }
-
-            if (!limiter) {
-                context.limiters[effect.id] = { timestamp: performance.now(), job: null }
-                _runEffect(effect.effect, context, meta)
-                return
-            }
-
-            if (effect.emitLast) {
-                if (performance.now() - limiter.timestamp >= effect.delay) {
-                    context.limiters[effect.id] = { timestamp: performance.now(), job: null }
-                    _runEffect(effect.effect, context, meta)
-                } else {
-                    const nextScheduled = effect.delay - (performance.now() - limiter.timestamp)
-                    const job = window.setTimeout(() => {
-                        context.limiters[effect.id] = { timestamp: performance.now(), job: null }
-                        _runEffect(effect.effect, context, meta)
-                    }, nextScheduled)
-
-                    context.limiters[effect.id] = { timestamp: limiter.timestamp, job: job }
-                }
-                return
-            }
-
-            if (performance.now() - limiter.timestamp >= effect.delay) {
-                context.limiters[effect.id] = { timestamp: performance.now(), job: null }
-                _runEffect(effect.effect, context, meta)
-            }
-            break
-        }
+        _runEffect(effect, this.context, this.meta)
     }
-}
 
-function createEffectStream(): EffectStream {
-    return {
-        emit: () => {},
-        close: () => {},
-        closed: false,
+    close() {
+        if (this.effect.cancelId) {
+            delete this.context.cancellables[this.effect.cancelId]
+        }
+
+        if (this.onClose) {
+            this.onClose()
+        }
+        this.closed = true
     }
-}
-
-function createEffectStreamProxy(
-    effect: StreamEffect,
-    stream: EffectStream,
-    context: EffectMiddlewareContext,
-    meta: EffectRunnerMeta
-): EffectStream {
-    return new Proxy(stream, {
-        get: (target, member: keyof EffectStream) => {
-            if (member === "emit") {
-                return (effect: Effect) => {
-                    if (target.closed) {
-                        return
-                    }
-                    target.emit(effect)
-                    _runEffect(effect, context, meta)
-                }
-            } else if (member === "close") {
-                return () => {
-                    if (target.onClose) {
-                        target.onClose()
-                    }
-
-                    if (effect.cancelId) {
-                        delete context.cancellables[effect.cancelId]
-                    }
-
-                    target.close()
-                    target.closed = true
-                }
-            }
-            return target[member]
-        },
-    })
 }

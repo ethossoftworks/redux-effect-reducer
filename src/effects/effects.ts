@@ -4,7 +4,7 @@ type OmitFirstParameter<T> = T extends (first: any, ...rest: infer I) => any ? I
 
 export enum EffectType {
     All = "@EFFECTS/ALL",
-    Cancel = "@EFFECTS/CANCEL_INTERVAL",
+    Cancel = "@EFFECTS/CANCEL",
     Dispatch = "@EFFECTS/DISPATCH",
     Interval = "@EFFECTS/INTERVAL",
     Run = "@EFFECTS/RUN",
@@ -81,7 +81,7 @@ export type SelectEffect<S> = {
 
 export type DebounceEffect = {
     type: EffectType.Debounce
-    id: string
+    debounceId: string
     effect: Effect
     delay: number
     maxTimeout: number
@@ -90,7 +90,7 @@ export type DebounceEffect = {
 
 export type ThrottleEffect = {
     type: EffectType.Throttle
-    id: string
+    throttleId: string
     effect: Effect
     delay: number
     emitLast: boolean
@@ -191,20 +191,20 @@ export const select = <S, F extends SelectEffectFunc<any>>(func: F, ...args: Omi
         [EffectSymbol]: true,
     })
 
-export const debounce = (id: string, effect: Effect, delay: number, maxTimeout: number = -1): DebounceEffect =>
+export const debounce = (debounceId: string, effect: Effect, delay: number, maxTimeout: number = -1): DebounceEffect =>
     Object.freeze({
         type: EffectType.Debounce,
-        id,
+        debounceId: debounceId,
         effect,
         maxTimeout,
         delay,
         [EffectSymbol]: true,
     })
 
-export const throttle = (id: string, effect: Effect, delay: number, emitLast: boolean = true): ThrottleEffect =>
+export const throttle = (throttleId: string, effect: Effect, delay: number, emitLast: boolean = true): ThrottleEffect =>
     Object.freeze({
         type: EffectType.Throttle,
-        id,
+        throttleId: throttleId,
         effect,
         emitLast,
         delay,
