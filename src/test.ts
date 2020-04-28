@@ -1,10 +1,11 @@
 import { Action } from "redux"
 import { DefaultEffectLogger } from "./logger"
-import { EffectMiddlewareContext } from "./middleware"
+import { EffectMiddlewareContext, EffectLimiter } from "./middleware"
 
 export class TestEffectMiddlewareContext implements EffectMiddlewareContext {
     dispatched: Action[] = []
     cancellables: Record<string | number, () => void> = {}
+    limiters: Record<string, EffectLimiter> = {}
     logger = new DefaultEffectLogger()
 
     constructor(private state?: any) {

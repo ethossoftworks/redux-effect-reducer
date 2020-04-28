@@ -14,12 +14,19 @@ import {
     EffectType,
     all,
     EffectStream,
+    debounce,
+    throttle,
 } from "./effects/effects"
 import { sleep, race } from "./util"
 import isEqual from "lodash.isequal"
 import { TestEffectMiddlewareContext } from "./test"
 import { performance } from "perf_hooks"
+import { SourceMapDevToolPlugin } from "webpack"
 ;(global as any).performance = performance
+;(global as any).window = {
+    setTimeout: setTimeout,
+    clearTimeout: clearTimeout,
+}
 
 type ReduxActionCreator<T extends Record<string, (...args: any) => any>> = ReturnType<
     Extract<T[keyof T], (...args: any) => Action<string>>
@@ -299,6 +306,58 @@ const Tests: TestGroup<typeof testContext> = {
             )
             await runEffect(effect, { ...middlewareContext, dispatch: store.dispatch, getState: store.getState })
         },
+        testDebounce: async ({ assert, context: { middlewareContext, logger, dispatched } }) => {
+            for (let i = 0; i < 10; i++) {
+                const effect = debounce("debounce_test", dispatch(TestActions.echo("debounce")), 250)
+                runEffect(effect, middlewareContext)
+                await sleep(100)
+            }
+
+            assert(logger.logs.length >= 10)
+            assert(dispatched.length == 0)
+            await sleep(250)
+            assert(dispatched.length == 1)
+
+            middlewareContext.logger.logs.splice(0, middlewareContext.logger.logs.length)
+            middlewareContext.dispatched.splice(0, middlewareContext.dispatched.length)
+
+            for (let i = 0; i < 10; i++) {
+                const effect = debounce("debounce_test2", dispatch(TestActions.echo("debounce")), 250, 400)
+                runEffect(effect, middlewareContext)
+                await sleep(100)
+            }
+
+            assert(logger.logs.length >= 10)
+            assert(dispatched.length == 2)
+            await sleep(300)
+            assert(dispatched.length == 3)
+        },
+        testThrottle: async ({ assert, context: { middlewareContext, logger, dispatched } }) => {
+            for (let i = 0; i < 10; i++) {
+                const effect = throttle("throttle_test", dispatch(TestActions.echo("throttle")), 250, false)
+                runEffect(effect, middlewareContext)
+                await sleep(100)
+            }
+
+            assert(logger.logs.length >= 10)
+            assert(dispatched.length == 4)
+            await sleep(250)
+            assert(dispatched.length == 4)
+
+            middlewareContext.logger.logs.splice(0, middlewareContext.logger.logs.length)
+            middlewareContext.dispatched.splice(0, middlewareContext.dispatched.length)
+
+            for (let i = 0; i < 9; i++) {
+                const effect = throttle("throttle_test2", dispatch(TestActions.echo("throttle")), 250, true)
+                runEffect(effect, middlewareContext)
+                await sleep(100)
+            }
+
+            assert(logger.logs.length >= 10)
+            assert(dispatched.length == 4)
+            await sleep(150)
+            assert(dispatched.length == 5)
+        },
         testAPIRequest: async ({ assert, context: { logger, middlewareContext } }) => {
             const effect = sequence(
                 dispatch(TestActions.echo("LOADING")),
@@ -401,6 +460,24 @@ const Tests: TestGroup<typeof testContext> = {
                     case EffectType.Stream: {
                         function streamFunc(stream: EffectStream, test: number) {}
                         assert(isEqual(stream(streamFunc, { args: [1] }), stream(streamFunc, { args: [1] })))
+                        return
+                    }
+                    case EffectType.Debounce: {
+                        assert(
+                            isEqual(
+                                debounce("debounce_test", dispatch(TestActions.echo("Hello")), 500, 500),
+                                debounce("debounce_test", dispatch(TestActions.echo("Hello")), 500, 500)
+                            )
+                        )
+                        return
+                    }
+                    case EffectType.Throttle: {
+                        assert(
+                            isEqual(
+                                throttle("throttle_test", dispatch(TestActions.echo("Hello")), 500),
+                                throttle("throttle_test", dispatch(TestActions.echo("Hello")), 500)
+                            )
+                        )
                         return
                     }
                     default:

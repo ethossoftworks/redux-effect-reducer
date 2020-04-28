@@ -10,6 +10,8 @@ export enum EffectType {
     Run = "@EFFECTS/RUN",
     Stream = "@EFFECTS/STREAM",
     Select = "@EFFECTS/SELECT",
+    Debounce = "@EFFECTS/DEBOUNCE",
+    Throttle = "@EFFECTS/THROTTLE",
 }
 
 export type Effect =
@@ -20,6 +22,8 @@ export type Effect =
     | CancelEffect
     | StreamEffect
     | SelectEffect<any>
+    | DebounceEffect
+    | ThrottleEffect
 
 const EffectSymbol = Symbol("Effect")
 
@@ -72,6 +76,24 @@ export type SelectEffect<S> = {
     type: EffectType.Select
     func: SelectEffectFunc<S>
     funcArgs: any[]
+    [EffectSymbol]: boolean
+}
+
+export type DebounceEffect = {
+    type: EffectType.Debounce
+    id: string
+    effect: Effect
+    delay: number
+    maxTimeout: number
+    [EffectSymbol]: boolean
+}
+
+export type ThrottleEffect = {
+    type: EffectType.Throttle
+    id: string
+    effect: Effect
+    delay: number
+    emitLast: boolean
     [EffectSymbol]: boolean
 }
 
@@ -166,6 +188,26 @@ export const select = <S, F extends SelectEffectFunc<any>>(func: F, ...args: Omi
         type: EffectType.Select,
         func,
         funcArgs: args,
+        [EffectSymbol]: true,
+    })
+
+export const debounce = (id: string, effect: Effect, delay: number, maxTimeout: number = -1): DebounceEffect =>
+    Object.freeze({
+        type: EffectType.Debounce,
+        id,
+        effect,
+        maxTimeout,
+        delay,
+        [EffectSymbol]: true,
+    })
+
+export const throttle = (id: string, effect: Effect, delay: number, emitLast: boolean = true): ThrottleEffect =>
+    Object.freeze({
+        type: EffectType.Throttle,
+        id,
+        effect,
+        emitLast,
+        delay,
         [EffectSymbol]: true,
     })
 

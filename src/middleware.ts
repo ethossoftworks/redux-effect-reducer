@@ -12,8 +12,14 @@ export type EffectReducer<S = any, A extends Action = Action> = (state: S, actio
 export interface EffectMiddlewareContext {
     logger?: EffectLogger
     cancellables: Record<string | number, () => void>
+    limiters: Record<string, EffectLimiter>
     dispatch: (action: Action) => void
     getState: () => any
+}
+
+export type EffectLimiter = {
+    timestamp: number
+    job: number | null
 }
 
 interface EffectRunnerMeta {
@@ -36,6 +42,7 @@ export function createEffectReducerMiddleware<S>(
             getState: store.getState,
             logger: options.logger,
             cancellables: {},
+            limiters: {},
         }
 
         return (next: Dispatch) => (action: Action) => {
@@ -191,6 +198,63 @@ async function _runEffect(
             const result = await effect.func(context.getState, ...effect.funcArgs)
             if (isEffect(result)) {
                 await _runEffect(result, context, nestedMeta)
+            }
+            break
+        }
+        case EffectType.Debounce: {
+            const limiter = context.limiters[effect.id]
+            if (limiter && limiter.job) {
+                clearTimeout(limiter.job)
+            }
+
+            const job = window.setTimeout(() => _runEffect(effect.effect, context, meta), effect.delay)
+
+            if (!limiter || effect.maxTimeout == -1) {
+                context.limiters[effect.id] = { timestamp: performance.now(), job: job }
+                return
+            }
+
+            if (performance.now() - limiter.timestamp >= effect.maxTimeout) {
+                window.clearTimeout(job)
+                context.limiters[effect.id] = { timestamp: performance.now(), job: null }
+                _runEffect(effect.effect, context, meta)
+                return
+            }
+
+            context.limiters[effect.id] = { timestamp: limiter.timestamp, job: job }
+            break
+        }
+        case EffectType.Throttle: {
+            const limiter = context.limiters[effect.id]
+            if (limiter && limiter.job) {
+                clearTimeout(limiter.job)
+            }
+
+            if (!limiter) {
+                context.limiters[effect.id] = { timestamp: performance.now(), job: null }
+                _runEffect(effect.effect, context, meta)
+                return
+            }
+
+            if (effect.emitLast) {
+                if (performance.now() - limiter.timestamp >= effect.delay) {
+                    context.limiters[effect.id] = { timestamp: performance.now(), job: null }
+                    _runEffect(effect.effect, context, meta)
+                } else {
+                    const nextScheduled = effect.delay - (performance.now() - limiter.timestamp)
+                    const job = window.setTimeout(() => {
+                        context.limiters[effect.id] = { timestamp: performance.now(), job: null }
+                        _runEffect(effect.effect, context, meta)
+                    }, nextScheduled)
+
+                    context.limiters[effect.id] = { timestamp: limiter.timestamp, job: job }
+                }
+                return
+            }
+
+            if (performance.now() - limiter.timestamp >= effect.delay) {
+                context.limiters[effect.id] = { timestamp: performance.now(), job: null }
+                _runEffect(effect.effect, context, meta)
             }
             break
         }
