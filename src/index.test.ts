@@ -21,7 +21,6 @@ import { sleep, race } from "./util"
 import isEqual from "lodash.isequal"
 import { TestEffectMiddlewareContext } from "./test"
 import { performance } from "perf_hooks"
-import { SourceMapDevToolPlugin } from "webpack"
 ;(global as any).performance = performance
 ;(global as any).window = {
     setTimeout: setTimeout,
