@@ -218,6 +218,24 @@ const Tests: TestGroup<typeof testContext> = {
                     isEqual(logger.last().effect, cancel("decrement_interval"))
             )
         },
+        testRunningJobCancellationPrevention: async ({ assert, context: { logger, middlewareContext } }) => {
+            const effect = parallel(
+                timeout(
+                    async () => {
+                        await sleep(500)
+                        return dispatch(TestActions.echo(""))
+                    },
+                    10,
+                    { cancelId: "timeout" }
+                ),
+                timeout(cancel("timeout"), 100)
+            )
+            await runEffect(effect, middlewareContext)
+            assert(
+                middlewareContext.dispatched.length == 1,
+                "Cancel shouldn't cancel an already executing job in a timeout or interval"
+            )
+        },
         testTimeout: async ({ assert, fail, context: { middlewareContext, dispatched } }) => {
             const start = performance.now()
             setTimeout(() => {
