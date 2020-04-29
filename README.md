@@ -7,6 +7,7 @@ Redux Effect Reducer works by using a reducer-like function (an effect reducer) 
 - [Testing](docs/testing.md)
 - [Design](docs/design.md)
 - [Example Project](example/)
+- [Example Project Demo](https://ethossoftworks.github.io/redux-effect-reducer/example/index.html)
 - [Release Notes](docs/release-notes.md)
 
 # Features
