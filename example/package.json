@@ -1,10 +1,10 @@
 {
     "name": "redux-effect-reducer-example",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "",
     "license": "MIT",
     "dependencies": {
-        "@ethossoftworks/redux-effect-reducer": "^1.0.0",
+        "@ethossoftworks/redux-effect-reducer": "^1.1.0",
         "@types/react": "^16.9.34",
         "@types/react-dom": "^16.9.6",
         "@types/react-redux": "^7.1.7",
@@ -30,6 +30,7 @@
     },
     "scripts": {
         "update-local-lib": "node scripts/update-local-lib.js",
-        "build": "npx webpack"
+        "build": "npx webpack --env prod",
+        "build-dev": "npx webpack --env dev"
     }
 }

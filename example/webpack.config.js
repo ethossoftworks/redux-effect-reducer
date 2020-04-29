@@ -4,10 +4,9 @@ const { CleanWebpackPlugin } = require("clean-webpack-plugin")
 const packageName = "redux-effect-reducer-example"
 const entryFile = "index"
 
-module.exports = {
+const prodConfig = {
     entry: `./src/${entryFile}.tsx`,
-    devtool: "source-map",
-    mode: "development",
+    mode: "production",
     module: {
         rules: [
             {
@@ -26,4 +25,19 @@ module.exports = {
         path: path.resolve(__dirname, "build"),
         globalObject: "this",
     },
+}
+
+const devConfig = {
+    ...prodConfig,
+    devtool: "source-map",
+    mode: "development",
+}
+
+module.exports = (env) => {
+    switch (env) {
+        case "prod":
+            return prodConfig
+        case "dev":
+            return devConfig
+    }
 }
