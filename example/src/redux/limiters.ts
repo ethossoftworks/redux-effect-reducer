@@ -7,13 +7,13 @@ import {
     sequence,
     cancel,
     throttle,
-    run,
 } from "@ethossoftworks/redux-effect-reducer/effects"
 
 export type LimitersState = {
     debounceDelay: number
     debounceTimeout: number
     debounceMessages: string[]
+    debounceSliderValue: number
     throttleDelay: number
     throttleEmitInterval: number
     throttleMessages: string[]
@@ -21,7 +21,8 @@ export type LimitersState = {
 }
 
 const initialState: LimitersState = {
-    debounceDelay: 500,
+    debounceSliderValue: 0,
+    debounceDelay: 250,
     debounceTimeout: 0,
     debounceMessages: [],
     throttleDelay: 500,
@@ -33,10 +34,10 @@ const initialState: LimitersState = {
 type LimitersActions = ReduxActionCreator<typeof LimitersActions>
 
 export const LimitersActions = {
-    debounceMessage: () => ({ type: "DEBOUNCE_MESSAGE" } as const),
+    debounceMessage: (value: number) => ({ type: "DEBOUNCE_MESSAGE", value } as const),
     debounceDelayChanged: (value: number) => ({ type: "DEBOUNCE_DELAY_CHANGED", value } as const),
     debounceTimeoutChanged: (value: number) => ({ type: "DEBOUNCE_TIMEOUT_CHANGED", value } as const),
-    debounceButtonClicked: () => ({ type: "DEBOUNCE_BUTTON_CLICKED" } as const),
+    debounceSliderChanged: (value: number) => ({ type: "DEBOUNCE_SLIDER_CHANGED", value } as const),
     throttleDelayChanged: (value: number) => ({ type: "THROTTLE_DELAY_CHANGED", value } as const),
     throttleEmitIntervalChanged: (value: number) => ({ type: "THROTTLE_EMIT_INTERVAL_CHANGED", value } as const),
     throttleButtonClicked: () => ({ type: "THROTTLE_BUTTON_CLICKED" } as const),
@@ -46,8 +47,10 @@ export const LimitersActions = {
 
 export function limitersReducer(state: LimitersState = initialState, action: LimitersActions): LimitersState {
     switch (action.type) {
+        case "DEBOUNCE_SLIDER_CHANGED":
+            return { ...state, debounceSliderValue: action.value }
         case "DEBOUNCE_MESSAGE":
-            return { ...state, debounceMessages: state.debounceMessages.concat([`Run: ${performance.now()}`]) }
+            return { ...state, debounceMessages: state.debounceMessages.concat([`Effect Run: ${action.value}`]) }
         case "DEBOUNCE_DELAY_CHANGED":
             return { ...state, debounceDelay: action.value }
         case "DEBOUNCE_TIMEOUT_CHANGED":
@@ -67,20 +70,13 @@ export function limitersReducer(state: LimitersState = initialState, action: Lim
 
 export function limitersEffectReducer(state: LimitersState, action: LimitersActions): Effect | void {
     switch (action.type) {
-        case "DEBOUNCE_BUTTON_CLICKED":
+        case "DEBOUNCE_SLIDER_CHANGED":
             return debounce(
                 "debounceTest",
-                dispatch(LimitersActions.debounceMessage()),
+                dispatch(LimitersActions.debounceMessage(action.value)),
                 state.debounceDelay,
                 state.debounceTimeout === 0 ? -1 : state.debounceTimeout
             )
-        case "DEBOUNCE_BUTTON_CLICKED":
-            if (state.isEmittingThrottleEvents) {
-                return interval(dispatch(LimitersActions.throttleEventEmitted()), state.throttleEmitInterval, {
-                    cancelId: "throttleEmitter",
-                })
-            }
-            break
         case "THROTTLE_EMIT_INTERVAL_CHANGED":
             if (state.isEmittingThrottleEvents) {
                 return sequence(
