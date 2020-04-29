@@ -14,12 +14,18 @@ import {
     EffectType,
     all,
     EffectStream,
+    debounce,
+    throttle,
 } from "./effects/effects"
 import { sleep, race } from "./util"
 import isEqual from "lodash.isequal"
 import { TestEffectMiddlewareContext } from "./test"
 import { performance } from "perf_hooks"
 ;(global as any).performance = performance
+;(global as any).window = {
+    setTimeout: setTimeout,
+    clearTimeout: clearTimeout,
+}
 
 type ReduxActionCreator<T extends Record<string, (...args: any) => any>> = ReturnType<
     Extract<T[keyof T], (...args: any) => Action<string>>
@@ -278,6 +284,14 @@ const Tests: TestGroup<typeof testContext> = {
                     isEqual(logger.last().effect, dispatch(TestActions.echo("STREAM_CLOSED")))
             )
         },
+        testCancellableCleanup: async ({ assert, context: { middlewareContext } }) => {
+            const effect = parallel(
+                timeout(dispatch(TestActions.echo("")), 500, { cancelId: "cancellable_cleanup_timeout" }),
+                stream((stream) => stream.close(), { cancelId: "cancellable_cleanup_stream" })
+            )
+            await runEffect(effect, middlewareContext)
+            assert(Object.keys(middlewareContext.cancellables).length === 0)
+        },
         testSelect: async ({ fail, context: { middlewareContext } }) => {
             const store = createStore(reducer1)
             const effect = sequence(
@@ -290,6 +304,67 @@ const Tests: TestGroup<typeof testContext> = {
                 })
             )
             await runEffect(effect, { ...middlewareContext, dispatch: store.dispatch, getState: store.getState })
+        },
+        testDebounce: async ({ fail, assert, context: { middlewareContext, logger, dispatched } }) => {
+            for (let i = 0; i < 10; i++) {
+                const effect = debounce("debounce_test", dispatch(TestActions.echo("debounce")), 250)
+                runEffect(effect, middlewareContext)
+                await sleep(100)
+            }
+
+            assert(logger.logs.length >= 10)
+            assert(dispatched.length == 0)
+            await sleep(250)
+            assert(dispatched.length == 1)
+
+            middlewareContext.logger.logs.splice(0, middlewareContext.logger.logs.length)
+            middlewareContext.dispatched.splice(0, middlewareContext.dispatched.length)
+
+            const effect = debounce("debounce_test2", dispatch(TestActions.echo("debounce")), 250, 400)
+            for (let i = 0; i < 10; i++) {
+                runEffect(effect, middlewareContext)
+                await sleep(100)
+            }
+
+            assert(logger.logs.length >= 10)
+            assert(dispatched.length == 2)
+            await sleep(300)
+            assert(dispatched.length == 3)
+
+            // Test remitting after timeout with a max timeout
+            runEffect(effect, middlewareContext)
+            await sleep(100)
+            if (dispatched.length === 4) {
+                fail("Re-click after timeout (with max timeout) fires immediately")
+            }
+            await sleep(200)
+            assert(dispatched.length === 4)
+        },
+        testThrottle: async ({ assert, context: { middlewareContext, logger, dispatched } }) => {
+            for (let i = 0; i < 10; i++) {
+                const effect = throttle("throttle_test", dispatch(TestActions.echo("throttle")), 250, false)
+                runEffect(effect, middlewareContext)
+                await sleep(100)
+            }
+
+            assert(logger.logs.length >= 10)
+            assert(dispatched.length == 4)
+            await sleep(250)
+            assert(dispatched.length == 4)
+
+            middlewareContext.logger.logs.splice(0, middlewareContext.logger.logs.length)
+            middlewareContext.dispatched.splice(0, middlewareContext.dispatched.length)
+
+            for (let i = 0; i < 9; i++) {
+                const effect = throttle("throttle_test2", dispatch(TestActions.echo("throttle")), 250, true)
+                runEffect(effect, middlewareContext)
+                await sleep(100)
+            }
+
+            assert(logger.logs.length >= 10)
+            assert(dispatched.length == 4)
+            await sleep(150)
+            assert(dispatched.length == 5)
         },
         testAPIRequest: async ({ assert, context: { logger, middlewareContext } }) => {
             const effect = sequence(
@@ -393,6 +468,24 @@ const Tests: TestGroup<typeof testContext> = {
                     case EffectType.Stream: {
                         function streamFunc(stream: EffectStream, test: number) {}
                         assert(isEqual(stream(streamFunc, { args: [1] }), stream(streamFunc, { args: [1] })))
+                        return
+                    }
+                    case EffectType.Debounce: {
+                        assert(
+                            isEqual(
+                                debounce("debounce_test", dispatch(TestActions.echo("Hello")), 500, 500),
+                                debounce("debounce_test", dispatch(TestActions.echo("Hello")), 500, 500)
+                            )
+                        )
+                        return
+                    }
+                    case EffectType.Throttle: {
+                        assert(
+                            isEqual(
+                                throttle("throttle_test", dispatch(TestActions.echo("Hello")), 500),
+                                throttle("throttle_test", dispatch(TestActions.echo("Hello")), 500)
+                            )
+                        )
                         return
                     }
                     default:

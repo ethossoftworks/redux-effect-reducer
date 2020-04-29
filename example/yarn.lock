@@ -9,10 +9,10 @@
   dependencies:
     regenerator-runtime "^0.13.4"
 
-"@ethossoftworks/redux-effect-reducer@^1.0.0":
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/@ethossoftworks/redux-effect-reducer/-/redux-effect-reducer-1.0.0.tgz#9f85b807be3fbd372ec04df232a2ffc73753d02b"
-  integrity sha512-GXa1mGif1LkKo/G/T8KpRBFRkAL6T8uGiRdoRgYkhvagzcYKNMNfjMuNvk9ruu5bX6L8lGH4C06AEOmvWKNUfA==
+"@ethossoftworks/redux-effect-reducer@^1.1.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@ethossoftworks/redux-effect-reducer/-/redux-effect-reducer-1.1.0.tgz#c8c73bac37f3ebd7c27a73867e0563a93c393b3e"
+  integrity sha512-LhNpBnAIQvTtdNxE5Db8AUs5aJQkkq7NZwZbTm2lp/Lfp5fqRZRJnqLJpSl62gnCH60pjfkXKnUqg+dCcoFwDQ==
 
 "@types/anymatch@*":
   version "1.3.1"
