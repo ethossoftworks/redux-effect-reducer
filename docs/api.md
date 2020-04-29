@@ -14,6 +14,8 @@
     * [stream](#stream)
     * [cancel](#cancel)
     * [select](#select)
+    * [debounce](#debounce)
+    * [throttle](#throttle)
 * [Utils](#Utils)
     * [race](#race)
     * [allSettled](#allSettled)
@@ -353,6 +355,52 @@ export function myEffectReducer(state: MyState, action: Action): Effect | void {
 ```
 
 &nbsp;
+### `debounce()`
+```typescript
+function debounce(debounceId: string, effect: Effect, delay: number, maxTimeout: number = -1) => DebounceEffect
+```
+Delays execution of `effect` until no more debounce effects with the same debounce id have be executed within the specified `delay` or `maxTimeout` window. This prevents the provided effect from being executed too frequently. A typical example is a range slider: Most of the time, you want the value to update immediately in Redux but you also want to wait until the user has stopped moving the slider for a certain amount of time before persisting the value to a database.
+* `debounceId`: The user-specified unique identifier for the debounce effect for the middleware to keep track of the last time the effect was run
+* `effect`: The effect to be debounced
+* `delay`: The amount of time to wait after the last debounce effect before running the provided effect
+* `maxTimeout`: Max timeout overrides the delay and is a way to ensure that the provided effect will fire at a certain interval regardless of the delay. Default is `-1` (no max timeout)
+
+#### Example
+```typescript
+export function myEffectReducer(state: MyState, action: Action): Effect | void {
+    switch (action.type) {
+        case "VERY_FREQUENT_ACTION":
+            return debounce(action.type, run(() => {
+                persistValueToDisk(state.value)
+            }), 500)
+    }
+}
+```
+
+&nbsp;
+### `throttle()`
+```typescript
+function throttle(throttleId: string, effect: Effect, delay: number, emitLast: boolean = true) => ThrottleEffect
+```
+Throttles execution of `effect` to prevent `effect` from running too frequently. Throttle is similar to debounce but differs in the fact that the effect will be executed the first time instead of waiting for the specified delay.
+* `debounceId`: The user-specified unique identifier for the throttle effect for the middleware to keep track of the last time the effect was run
+* `effect`: The effect to be throttled
+* `delay`: The minimum amount of time allowed between throttle calls before allowing `effect` to be executed
+* `emitLast`: If the input to the throttle stops in the middle of the delay time period, throttle will store the last emitted throttle effect and run it when it would next be able to
+
+#### Example
+```typescript
+export function myEffectReducer(state: MyState, action: Action): Effect | void {
+    switch (action.type) {
+        case "VERY_FREQUENT_ACTION":
+            return throttle(action.type, run(() => {
+                sendValueToServer(state.value)
+            }), 1000)
+    }
+}
+```
+
+&nbsp;
 ## Utils
 ### `race()`
 ```typescript
@@ -516,6 +564,7 @@ An individual log record used in an `EffectLogger`
 interface EffectMiddlewareContext {
     logger?: EffectLogger
     cancellables: Record<string | number, () => void>
+    limiters: Record<string | EffectLimiterJob>
     dispatch: (action: Action) => void
     getState: () => any
 }
@@ -523,6 +572,7 @@ interface EffectMiddlewareContext {
 The context that provides handling for different effects to the middleware. Used in `runEffect()`.
 * `logger`: An optional logger for tracking executed effects
 * `cancellables`: A plain object for keeping track of all cancellable effects. This should always be `{}`.
+* `limiters`: A plain object for keeping track of limiting effects like `debounce` and `throttle`. This should always be `{}`.
 * `dispatch()`: Handles all `dispatch()` effects
 * `getState()`: Handles all `select()` effects
 

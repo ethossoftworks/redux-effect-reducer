@@ -4,12 +4,14 @@ type OmitFirstParameter<T> = T extends (first: any, ...rest: infer I) => any ? I
 
 export enum EffectType {
     All = "@EFFECTS/ALL",
-    Cancel = "@EFFECTS/CANCEL_INTERVAL",
+    Cancel = "@EFFECTS/CANCEL",
     Dispatch = "@EFFECTS/DISPATCH",
     Interval = "@EFFECTS/INTERVAL",
     Run = "@EFFECTS/RUN",
     Stream = "@EFFECTS/STREAM",
     Select = "@EFFECTS/SELECT",
+    Debounce = "@EFFECTS/DEBOUNCE",
+    Throttle = "@EFFECTS/THROTTLE",
 }
 
 export type Effect =
@@ -20,6 +22,8 @@ export type Effect =
     | CancelEffect
     | StreamEffect
     | SelectEffect<any>
+    | DebounceEffect
+    | ThrottleEffect
 
 const EffectSymbol = Symbol("Effect")
 
@@ -72,6 +76,24 @@ export type SelectEffect<S> = {
     type: EffectType.Select
     func: SelectEffectFunc<S>
     funcArgs: any[]
+    [EffectSymbol]: boolean
+}
+
+export type DebounceEffect = {
+    type: EffectType.Debounce
+    debounceId: string
+    effect: Effect
+    delay: number
+    maxTimeout: number
+    [EffectSymbol]: boolean
+}
+
+export type ThrottleEffect = {
+    type: EffectType.Throttle
+    throttleId: string
+    effect: Effect
+    delay: number
+    emitLast: boolean
     [EffectSymbol]: boolean
 }
 
@@ -166,6 +188,26 @@ export const select = <S, F extends SelectEffectFunc<any>>(func: F, ...args: Omi
         type: EffectType.Select,
         func,
         funcArgs: args,
+        [EffectSymbol]: true,
+    })
+
+export const debounce = (debounceId: string, effect: Effect, delay: number, maxTimeout: number = -1): DebounceEffect =>
+    Object.freeze({
+        type: EffectType.Debounce,
+        debounceId: debounceId,
+        effect,
+        maxTimeout,
+        delay,
+        [EffectSymbol]: true,
+    })
+
+export const throttle = (throttleId: string, effect: Effect, delay: number, emitLast: boolean = true): ThrottleEffect =>
+    Object.freeze({
+        type: EffectType.Throttle,
+        throttleId: throttleId,
+        effect,
+        emitLast,
+        delay,
         [EffectSymbol]: true,
     })
 

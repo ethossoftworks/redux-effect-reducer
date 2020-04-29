@@ -1,6 +1,20 @@
 # Testing
 Testing `redux-effect-reducer` is pretty straightforward. Since all effect creators and effect reducers are pure, it is easy to repeatably test the outputs certain inputs generate.
 
+## Important Note for testing with Node.JS
+There are certain browser-only functions that `redux-effect-reducer` uses. If you want to test with Node.JS you will need to add the Node.JS equivalents for the following functions to the global/window object:
+* The Effect Logger uses `performance.now()` for timestamps
+* Debounce and Throttle effects use `window.setTimeout()` and `window.clearTimeout()`
+
+```typescript
+import { performance } from "perf_hooks";
+(global as any).performance = performance;
+(global as any).window = {
+    setTimeout: setTimeout,
+    clearTimeout: clearTimeout,
+}
+```
+
 ## Effect Equality Comparisons
 Since effects are plain objects, they are comparable with a library like `lodash.isequal` which performs a deep comparison of two objects. This works as expected for most effects. However, it is important to note that:
 
@@ -28,17 +42,6 @@ The first comparison fails because a new anonymous function instance is created 
 
 ## Effect Logging
 As you may have noticed, `createEffectReducerMiddleware()` can take an optional effect logger as an option parameter. An `EffectLogger` keeps track of all of the effects run from the middleware and stores valuable information for each effect. This is useful for both testing and debugging. You may create your own EffectLogger or use the provided `DefaultEffectLogger`. For more information on the effect logger, view its API documentation [here](api.md#EffectLogger).
-
-### Important Note on Effect Logging
-The Effect Logger uses `performance.now()` for timestamps. If you want to be able to test with a logger (which you most certainly do) in Node.js, you will need to add the following lines to your test:
-
-```typescript
-import { performance } from "perf_hooks";
-(global as any).performance = performance;
-```
-
-Node.JS does not natively handle calling `performance.now()` and adding these lines will add the Node implementation of `performance` to the global object where `redux-effect-reducer` can use it.
-
 
 ## Testing an effect reducer
 Testing the effect reducer is as simple as passing state into your effect reducer with an action and testing the returned effect. This makes certain that your reducer is responding to actions correctly.
