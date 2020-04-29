@@ -80,7 +80,7 @@ function reducer2(state: State2 = initialState2, action: TestActions): State2 {
         case "DECREMENT_NUMBER":
             return {
                 ...state,
-                ...{ testNumber: state.testNumber2 - 1 },
+                ...{ testNumber2: state.testNumber2 - 1 },
             }
         case "ECHO_RECEIVED":
             return { ...state, ...{ echoReceived2: true } }
