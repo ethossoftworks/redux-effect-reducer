@@ -7,6 +7,7 @@ Redux Effect Reducer works by using a reducer-like function (an effect reducer) 
 - [Testing](docs/testing.md)
 - [Design](docs/design.md)
 - [Example Project](example/)
+- [Release Notes](docs/release-notes.md)
 
 # Features
 - First class type support (written in TypeScript)
