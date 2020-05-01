@@ -4,7 +4,7 @@ import { EffectMiddlewareContext, EffectLimiterJob } from "./middleware"
 
 export class TestEffectMiddlewareContext implements EffectMiddlewareContext {
     dispatched: Action[] = []
-    cancellables: Record<string | number, (() => void)[]> = {}
+    cancellables: Record<string | number, Record<number, () => void>> = {}
     limiters: Record<string, EffectLimiterJob> = {}
     logger = new DefaultEffectLogger()
 

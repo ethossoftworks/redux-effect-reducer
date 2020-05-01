@@ -1,4 +1,8 @@
 # 1.2.1 (2020-05-01)
+## Fixed
+* Fixed issue where a cancellable finishing naturally would clear the whole cancel group
+
+# 1.2.1 (2020-05-01)
 ## Added
 * Missing documentation link for `combineRootEffectReducers()`
 

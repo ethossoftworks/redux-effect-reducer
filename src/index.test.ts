@@ -242,6 +242,17 @@ const Tests: TestGroup<typeof testContext> = {
                 "Cancel group did not clean up cancellable"
             )
         },
+        testCancelGroupNormalCompletion: async ({ assert, context: { dispatched, logger, middlewareContext } }) => {
+            const effect = parallel(
+                timeout(dispatch(TestActions.echo("1")), 250, { cancelId: "cancel_group" }),
+                timeout(dispatch(TestActions.echo("2")), 750, { cancelId: "cancel_group" }),
+                timeout(dispatch(TestActions.echo("3")), 1000, { cancelId: "cancel_group" })
+            )
+            setTimeout(() => runEffect(cancel("cancel_group"), middlewareContext), 500)
+            runEffect(effect, middlewareContext)
+            await sleep(1100)
+            assert(dispatched.length === 1, "Effect finishing normally cleared cancel group instead of single task")
+        },
         testRunningJobCancellationPrevention: async ({ assert, context: { logger, middlewareContext } }) => {
             const effect = parallel(
                 timeout(
