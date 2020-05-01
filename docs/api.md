@@ -68,9 +68,27 @@ Combines several effect reducers similar to how redux's `combineReducers` functi
 #### Example
 ```typescript
     const rootEffectReducer = combineEffectReducers({
-        subStateA: substateAEffectReducer,
-        subStateB: substateBEffectReducer,
+        subStateA: substateAEffectReducer, // Receives subStateA as state parameter
+        subStateB: substateBEffectReducer, // Receives subStateB as state parameter
     })
+
+    const effectMiddleware = createEffectReducerMiddleware(rootEffectReducer)
+```
+
+&nbsp;
+### `combineRootEffectReducers()`
+```typescript
+function combineRootEffectReducers<S>(...effectReducers: EffectReducer<S>[]): EffectReducer<S>
+```
+Combines several top-level effect reducers into one. The key difference between this and `combineEffectReducers` is that all effect reducers in `combineRootEffectReducers()` receive the full state tree. This is useful if you have several effect reducers that you want to have access to the full state. `combineRootEffectReducers()` may also be used alongside `combineEffectReducer()`.
+* `effectReducers`: The effect reducers to combine. Each effect reducer receives the full state tree.
+
+#### Example
+```typescript
+    const rootEffectReducer = combineRootEffectReducers(
+        exampleEffectReducer1, // Receives full state tree as state parameter
+        exampleEffectReducer2, // Receives full state tree as state parameter
+    )
 
     const effectMiddleware = createEffectReducerMiddleware(rootEffectReducer)
 ```

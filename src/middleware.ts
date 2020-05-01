@@ -75,6 +75,27 @@ export function createEffectReducerMiddleware<S>(
     }
 }
 
+export function combineRootEffectReducers<S>(...effectReducers: EffectReducer<S>[]): EffectReducer<S> {
+    const reducerCount = effectReducers.length
+
+    return (state, action) => {
+        const effects: Effect[] = []
+
+        for (let i = 0; i < reducerCount; i++) {
+            const effect = effectReducers[i](state, action)
+            if (effect) {
+                effects.push(effect)
+            }
+        }
+
+        if (effects.length > 1) {
+            return all(effects)
+        } else if (effects.length === 1) {
+            return effects[0]
+        }
+    }
+}
+
 export function combineEffectReducers<S>(reducerMap: EffectReducerMap<S>): EffectReducer<S> {
     const reducerKeys = Object.keys(reducerMap) as (keyof S)[]
 

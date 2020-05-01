@@ -1,6 +1,11 @@
 import { runTests, TestGroup } from "@ethossoftworks/knock-on-wood"
 import { Action, createStore, applyMiddleware, combineReducers } from "redux"
-import { createEffectReducerMiddleware, combineEffectReducers, runEffect } from "./middleware"
+import {
+    createEffectReducerMiddleware,
+    combineEffectReducers,
+    runEffect,
+    combineRootEffectReducers,
+} from "./middleware"
 import {
     dispatch,
     run,
@@ -457,6 +462,32 @@ const Tests: TestGroup<typeof testContext> = {
                     store.getState().state2.echoReceived2 === true &&
                     logger.count() === 3 // all() from combine reducers and 2 dispatches
             )
+        },
+        testCombineRootEffectReducers: async ({ assert, context: { logger } }) => {
+            function rootEffectReducer1(state: State, action: TestActions) {
+                switch (action.type) {
+                    case "INCREMENT_NUMBER":
+                        return dispatch(TestActions.echo(`${state.state1.testNumber}`))
+                }
+            }
+            function rootEffectReducer2(state: State, action: Action) {
+                switch (action.type) {
+                    case "INCREMENT_NUMBER":
+                        return dispatch(TestActions.echo(`${state.state2.testNumber2}`))
+                }
+            }
+
+            const effectMiddleware = createEffectReducerMiddleware(
+                combineRootEffectReducers<State>(rootEffectReducer1, rootEffectReducer2),
+                { logger: logger }
+            )
+            const store = createStore(
+                combineReducers({ state1: reducer1, state2: reducer2 }),
+                applyMiddleware(effectMiddleware)
+            )
+
+            store.dispatch(TestActions.incrementNumber())
+            assert(logger.count() === 3 && isEqual(logger.last().effect, dispatch(TestActions.echo("5"))))
         },
         testEffectComparability: async ({ assert, fail }) => {
             for (const type of Object.values(EffectType)) {
