@@ -2,6 +2,7 @@
 * [Middleware API](#Middleware-API)
     * [createEffectReducerMiddleware](#createEffectReducerMiddleware)
     * [combineEffectReducers](#combineEffectReducers)
+    * [combineRootEffectReducers](#combineRootEffectReducers)
     * [runEffect](#runEffect)
 * [Effect Creators](#Effect-Creators)
     * [run](#run)
