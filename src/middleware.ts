@@ -26,7 +26,7 @@ export type EffectReducer<S = any, A extends Action = Action> = (state: S, actio
 
 export interface EffectMiddlewareContext {
     logger?: EffectLogger
-    cancellables: Record<string | number, (() => void)[]>
+    cancellables: Record<string | number, Record<number, () => void>>
     limiters: Record<string, EffectLimiterJob>
     dispatch: (action: Action) => void
     getState: () => any
@@ -186,15 +186,16 @@ async function handleAllEffect(effect: AllEffect, context: EffectMiddlewareConte
 
 async function handleIntervalEffect(effect: IntervalEffect, context: EffectMiddlewareContext, meta: EffectRunnerMeta) {
     const cancelWrapper = { cancelled: false, cancel: () => {} }
+    const cancelJobId = performance.now() + Math.random()
 
     if (effect.cancelId) {
         if (!context.cancellables[effect.cancelId]) {
-            context.cancellables[effect.cancelId] = []
+            context.cancellables[effect.cancelId] = {}
         }
-        context.cancellables[effect.cancelId].push(() => {
+        context.cancellables[effect.cancelId][cancelJobId] = () => {
             cancelWrapper.cancelled = true
             cancelWrapper.cancel()
-        })
+        }
     }
 
     const runTask = async () => {
@@ -230,15 +231,13 @@ async function handleIntervalEffect(effect: IntervalEffect, context: EffectMiddl
         }
     }
 
-    if (effect.cancelId) {
-        delete context.cancellables[effect.cancelId]
-    }
+    removeCancellable(cancelJobId, effect.cancelId, context)
 }
 
 async function handleCancelEffect(effect: CancelEffect, context: EffectMiddlewareContext, meta: EffectRunnerMeta) {
     const cancelGroup = context.cancellables[effect.cancelId]
     if (cancelGroup) {
-        for (const cancel of cancelGroup) {
+        for (const [_, cancel] of Object.entries(cancelGroup)) {
             cancel()
         }
         delete context.cancellables[effect.cancelId]
@@ -246,12 +245,13 @@ async function handleCancelEffect(effect: CancelEffect, context: EffectMiddlewar
 }
 
 async function handleStreamEffect(effect: StreamEffect, context: EffectMiddlewareContext, meta: EffectRunnerMeta) {
-    const stream = new DefaultEffectStream(effect, context, meta)
+    const cancelJobId = performance.now() + Math.random()
+    const stream = new DefaultEffectStream(cancelJobId, effect, context, meta)
     if (effect.cancelId) {
         if (!context.cancellables[effect.cancelId]) {
-            context.cancellables[effect.cancelId] = []
+            context.cancellables[effect.cancelId] = {}
         }
-        context.cancellables[effect.cancelId].push(stream.close.bind(stream))
+        context.cancellables[effect.cancelId][cancelJobId] = stream.close.bind(stream)
     }
     effect.func(stream, ...effect.funcArgs)
 }
@@ -327,11 +327,28 @@ async function handleThrottleEffect(effect: ThrottleEffect, context: EffectMiddl
     }
 }
 
+function removeCancellable(
+    cancelJobId: number,
+    cancelId: string | number | null = null,
+    context: EffectMiddlewareContext
+) {
+    if (!cancelId || !context.cancellables[cancelId] || !context.cancellables[cancelId][cancelJobId]) {
+        return
+    }
+
+    delete context.cancellables[cancelId][cancelJobId]
+
+    if (Object.keys(context.cancellables[cancelId]).length === 0) {
+        delete context.cancellables[cancelId]
+    }
+}
+
 class DefaultEffectStream implements EffectStream {
     onClose?: () => void = undefined
     closed: boolean = false
 
     constructor(
+        private cancelJobId: number,
         private effect: StreamEffect,
         private context: EffectMiddlewareContext,
         private meta: EffectRunnerMeta
@@ -345,9 +362,7 @@ class DefaultEffectStream implements EffectStream {
     }
 
     close() {
-        if (this.effect.cancelId) {
-            delete this.context.cancellables[this.effect.cancelId]
-        }
+        removeCancellable(this.cancelJobId, this.effect.cancelId, this.context)
 
         if (this.onClose) {
             this.onClose()
