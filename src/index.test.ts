@@ -218,6 +218,25 @@ const Tests: TestGroup<typeof testContext> = {
                     isEqual(logger.last().effect, cancel("decrement_interval"))
             )
         },
+        testCancelGroup: async ({ assert, context: { dispatched, logger, middlewareContext } }) => {
+            const start = performance.now()
+            setTimeout(() => runEffect(cancel("cancel_group"), middlewareContext), 250)
+            const effect = parallel(
+                interval(dispatch(TestActions.echo("1")), 500, { cancelId: "cancel_group" }),
+                timeout(dispatch(TestActions.echo("2")), 750, { cancelId: "cancel_group" }),
+                timeout(dispatch(TestActions.echo("3")), 1000, { cancelId: "cancel_group" })
+            )
+            await runEffect(effect, middlewareContext)
+            const end = performance.now()
+            await sleep(1000)
+
+            assert(end - start < 300, "Cancel group did not cancel all tasks")
+            assert(dispatched.length === 1)
+            assert(
+                Object.keys(middlewareContext.cancellables).length === 0,
+                "Cancel group did not clean up cancellable"
+            )
+        },
         testRunningJobCancellationPrevention: async ({ assert, context: { logger, middlewareContext } }) => {
             const effect = parallel(
                 timeout(

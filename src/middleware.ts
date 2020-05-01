@@ -26,7 +26,7 @@ export type EffectReducer<S = any, A extends Action = Action> = (state: S, actio
 
 export interface EffectMiddlewareContext {
     logger?: EffectLogger
-    cancellables: Record<string | number, () => void>
+    cancellables: Record<string | number, (() => void)[]>
     limiters: Record<string, EffectLimiterJob>
     dispatch: (action: Action) => void
     getState: () => any
@@ -167,10 +167,13 @@ async function handleIntervalEffect(effect: IntervalEffect, context: EffectMiddl
     const cancelWrapper = { cancelled: false, cancel: () => {} }
 
     if (effect.cancelId) {
-        context.cancellables[effect.cancelId] = () => {
+        if (!context.cancellables[effect.cancelId]) {
+            context.cancellables[effect.cancelId] = []
+        }
+        context.cancellables[effect.cancelId].push(() => {
             cancelWrapper.cancelled = true
             cancelWrapper.cancel()
-        }
+        })
     }
 
     const runTask = async () => {
@@ -212,9 +215,11 @@ async function handleIntervalEffect(effect: IntervalEffect, context: EffectMiddl
 }
 
 async function handleCancelEffect(effect: CancelEffect, context: EffectMiddlewareContext, meta: EffectRunnerMeta) {
-    const cancel = context.cancellables[effect.cancelId]
-    if (cancel) {
-        cancel()
+    const cancelGroup = context.cancellables[effect.cancelId]
+    if (cancelGroup) {
+        for (const cancel of cancelGroup) {
+            cancel()
+        }
         delete context.cancellables[effect.cancelId]
     }
 }
@@ -222,7 +227,10 @@ async function handleCancelEffect(effect: CancelEffect, context: EffectMiddlewar
 async function handleStreamEffect(effect: StreamEffect, context: EffectMiddlewareContext, meta: EffectRunnerMeta) {
     const stream = new DefaultEffectStream(effect, context, meta)
     if (effect.cancelId) {
-        context.cancellables[effect.cancelId] = stream.close.bind(stream)
+        if (!context.cancellables[effect.cancelId]) {
+            context.cancellables[effect.cancelId] = []
+        }
+        context.cancellables[effect.cancelId].push(stream.close.bind(stream))
     }
     effect.func(stream, ...effect.funcArgs)
 }

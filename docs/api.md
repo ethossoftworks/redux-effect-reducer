@@ -230,7 +230,7 @@ Runs a function or effect at an interval.
 * `delay`: The amount of time in milliseconds to pause before executing the task again. Unlike `window.setInterval()` The delay timer will not start until the task and any spawned effect children have completed. This prevents the same effect from overlapping itself if the previous execution takes longer than normal.
 * `options`
     * `args`: If the provided task is a named function, arguments may be passed here.
-    * `cancelId`: A user provided string or number to identify this particular task. If a cancel Id is passed, the middleware will register the cancel Id and allow the task to be cancelled using the `cancel()` effect creator.
+    * `cancelId`: A user provided string or number to identify this particular task. If a cancel Id is passed, the middleware will register the cancel Id and allow the task to be cancelled using the `cancel()` effect creator. The same cancel id may be used for multiple cancellable effects creating a cancellable group that will all be cancelled when using the `cancel()` effect creator.
 
         ***Note: canceling an interval will not immediately stop/cancel any actively running effects or spawned children. If the task has started, it will run to completion before cancelling.***
     * `runAtStart`: If true, the task will be run immediately. If false, the task will wait for the specified `delay` before running. Default is `true`.
@@ -261,7 +261,7 @@ Composes the `interval()` effect creator to provide a simple timeout that can be
 * `delay`: The amount of time in milliseconds to pause before executing the task
 * `options`:
     * `cancelId`: A user provided string or number to identify this particular task. If a cancelId is passed, the middleware will register the cancel id and
-    allow the task to be cancelled using the `cancel()` effect creator.
+    allow the task to be cancelled using the `cancel()` effect creator. The same cancel id may be used for multiple cancellable effects creating a cancellable group that will all be cancelled when using the `cancel()` effect creator.
 
         ***Note: canceling an interval will not immediately stop/cancel any actively running effects or spawned children. If the task has started, it will run to completion before cancelling.***
 
@@ -289,7 +289,7 @@ Allows handling of streams of data by providing an EffectStream to emit many eff
 * `func`: A function with a `stream` as the first parameter. Any additional parameters (for a named function) must be passed in the `options.args` property. This effect is the only effect that does not allow effect composition by returning an effect. This is mainly because it is unnecessary with access to an `EffectStream`.
 * `options`
     * `args`: If a named function is used for the `func` parameter, you may pass arguments here.
-    * `cancelId`: A user provided string or number to identify this particular stream. If a cancelId is passed, the middleware will register the cancel id and allow the stream to be cancelled using the `cancel()` effect creator. Stream cancellation only calls `stream.onClose()`. The user is responsible for stopping all other related ongoing tasks.
+    * `cancelId`: A user provided string or number to identify this particular stream. If a cancelId is passed, the middleware will register the cancel id and allow the stream to be cancelled using the `cancel()` effect creator. The same cancel id may be used for multiple cancellable effects creating a cancellable group that will all be cancelled when using the `cancel()` effect creator. Stream cancellation only calls `stream.onClose()`. The user is responsible for stopping all other related ongoing tasks.
 
 #### Example
 ```typescript
@@ -582,7 +582,7 @@ The context that provides handling for different effects to the middleware. Used
 ```typescript
 class TestEffectMiddlewareContext implements EffectMiddlewareContext {
     dispatched: Action[]
-    cancellables: Record<string | number, () => void>
+    cancellables: Record<string | number, (() => void)[]>
     logger: DefaultEffectLogger
 
     constructor(state?: any)
