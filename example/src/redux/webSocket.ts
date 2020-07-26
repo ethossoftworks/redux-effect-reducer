@@ -50,7 +50,7 @@ export function webSocketEffectReducer(state: WebSocketState, action: WebSocketA
                     const handleClose = () =>
                         stream.emit(dispatch(WebSocketActions.socketStatusChanged(socket, "Closed")))
 
-                    const socket = new WebSocket("ws://echo.websocket.org")
+                    const socket = new WebSocket("wss://echo.websocket.org")
                     socket.onopen = () => stream.emit(dispatch(WebSocketActions.socketStatusChanged(socket, "Open")))
                     socket.onclose = handleClose
                     socket.onerror = handleClose
